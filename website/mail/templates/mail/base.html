@@ -1,0 +1,212 @@
+﻿<!-- default 12-23-2017 -->
+<!DOCTYPE html>
+<html lang="en">
+   <head>
+      {% load staticfiles %}
+      <meta charset="utf-8">
+      <meta http-equiv="X-UA-Compatible" content="IE=edge">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>{% block title %}{% endblock %}</title>
+      <!-- Global stylesheets -->
+      <!-- googley stylesheets -->
+      <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet" type="text/css">
+      <link rel="stylesheet" href="{% static 'css/add-ons1.css' %}" type="text/css">
+      <!-- <link href="https://fonts.googleapis.com/css?family=Roboto:400,300,100,500,700,900" rel="stylesheet" type="text/css"> -->
+      <link href="{% static 'css/icons/icomoon/styles.css' %}" rel="stylesheet" type="text/css">
+      <link href="{% static 'css/bootstrap.css' %}" rel="stylesheet" type="text/css">
+      <link href="{% static 'css/core.css' %}" rel="stylesheet" type="text/css">
+      <link href="{% static 'css/style.css' %}" rel="stylesheet" type="text/css">
+      <link href="{% static 'css/components.css' %}" rel="stylesheet" type="text/css">
+      <link href="{% static 'css/colors.css' %}" rel="stylesheet" type="text/css">
+      <link href="{% static 'css/icons/fontawesome/css/font-awesome.min.css' %}" rel="stylesheet" type="text/css">
+      <!-- /global stylesheets -->
+      <!-- Core JS files -->
+      <!-- <script type="text/javascript" src="{% static 'js/plugins/loaders/pace.min.js' %}"></script> -->
+      <!-- <script type="text/javascript" src="{% static 'js/core/libraries/jquery.min.js' %}"></script> -->
+      <script
+        src="https://code.jquery.com/jquery-3.2.1.min.js"
+        integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4="
+        crossorigin="anonymous"></script>
+      <script type="text/javascript" src="{% static 'js/core/warnings.js' %}"></script>
+      <script type="text/javascript" src="{% static 'js/core/libraries/bootstrap.min.js' %}"></script>
+      <script type="text/javascript" src="{% static 'js/plugins/loaders/blockui.min.js' %}"></script>
+      <!-- <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/themes/smoothness/jquery-ui.css"> -->
+      <!-- <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/jquery-ui.min.js"></script> -->
+      <!-- /core JS files -->
+      <!-- Theme JS files -->
+      <script type="text/javascript" src="{% static 'js/core/libraries/jasny_bootstrap.min.js' %}"></script>
+      <!-- <script type="text/javascript" src="{% static 'js/plugins/forms/styling/uniform.min.js' %}"></script> -->
+      <script type="text/javascript" src="{% static 'js/core/app.js' %}"></script>
+      <script type="text/javascript" src="{% static 'js/pages/mail_list.js' %}"></script>
+      <style>{% block style %} {% endblock %}</style>
+      {% block head %}
+      {% endblock %}
+   </head>
+   <body>
+     <noscript>
+       <style>
+        .nojs {display:none;}
+       </style>
+       <div style="font-size: 18px;padding:8px 15px;font-family:Helvetica,Arial,sans-serif;background:#fcc;border:1px solid #c55">Javascript is required to load this page.</div>
+     </noscript>
+     <div class="sidebar-main-hidden nojs">
+      <!-- Main navbar -->
+      <div class="navbar navbar-inverse bg-indigo" >
+         <div class="navbar-header">
+            <a class="navbar-brand" href="inbox.html"><!--<img src="{% static 'images/logo.png' %}" alt="">--></a>
+            <ul class="nav navbar-nav visible-xs-block">
+               <li><a data-toggle="collapse" data-target="#navbar-mobile"><i class="icon-tree5"></i></a></li>
+               <li><a class="sidebar-mobile-main-toggle"><i class="icon-paragraph-justify3"></i></a></li>
+               <li><a class="sidebar-mobile-secondary-toggle"><i class="icon-more"></i></a></li>
+            </ul>
+         </div>
+            <div class="heading-elements" style="margin-top: 10px;margin-left: 0px;width: 500px;">
+               <form class="heading-form" action="#" style="width:100%">
+                  <div class="form-group" style="width:100%">
+                     <div class="has-feedback">
+                        <input type="search" class="form-control" id="disabledInput" placeholder="Search" style="height: 38px;width:90%;background:white;padding-left:12px;border:1px solid #bfbfbf" disabled>
+                        <div class="form-control-feedback">
+                           <i class="icon-search4 text-size-small text-muted" style="font-size: 15px;color: white;"></i>
+                        </div>
+                     </div>
+                  </div>
+               </form>
+            </div>
+            <div class="navbar-right" style="margin-right: 10px;">
+               <!-- <p style="color: #333;font-size: 15px;" class="navbar-text">{{user.username}}</p> -->
+               <!-- <ul class="nav navbar-nav"> -->
+               <a class="dropdown dropdown-toggle" label="logout_button" data-toggle="dropdown" title="Email Account: {{ user.username }}">
+                 <img style="margin: 8px;" src="{% static 'images/placeholder.jpg' %}" class="img-circle img-xs" alt="" href="">
+               </a>
+                  <ul class="dropdown-menu" style="margin-right: 20px; padding-bottom: 0px;">
+                    <li><div style="width: 200px; border-bottom: 0.5px solid #E0E0E0; padding-bottom: 10px;">
+                      <img class="profile-icon img-circle" src="{% static 'images/placeholder.jpg' %}" alt="" title="Profile" style="margin-bottom: 10px;">
+                      <strong>{{ user.username }}</strong>
+                    </li>
+                    <li><a class="button" href="{% url 'mail:logout_user' %}" style="margin: 5px 10px 5px 10px;">Sign out</a></li>
+                </ul>
+               <!-- </ul> -->
+            </div>
+         </div>
+      </div>
+      </div>
+      <!-- /main navbar -->
+      <!-- Page container -->
+      <div class="page-container nojs">
+         <!-- Page content -->
+         <div class="page-content">
+            <!-- Secondary sidebar -->
+            <div class="sidebar sidebar-secondary sidebar-default">
+               <div class="sidebar-content">
+
+									<!-- Actions -->
+                  <div class="sidebar-category">
+                     <div class="category-content">
+                        <a href="#" class="button create disabled" style="width: 80%">Compose</a>
+                     </div>
+                  </div>
+                  <!-- /actions -->
+
+									<!-- Sub navigation -->
+                  <div class="sidebar-category">
+
+									   <div class="category-content no-padding">
+                        <ul class="navigation navigation-alt navigation-accordion no-padding-bottom">
+                           <li class="navigation-header">Folders</li>
+                           <li class="active"><a href="{% url 'mail:inbox' %}">Inbox
+                             {% if user.unread_count > 0 %}
+                             <strong>({{ user.unread_count }})</strong>
+                            {% endif %}</a></li>
+                           <li class = "disabled"><a>Drafts</a></li>
+                           <li class = "disabled"><a>Sent mail</a></li>
+                           <li class = "disabled"><a>Starred</a></li>
+                           <li class="navigation-divider"></li>
+                           <li class = "disabled"><a>Spam</a></li>
+                           <li class = "disabled"><a>Trash</a></li>
+                        </ul>
+                     </div>
+                  </div>
+                  <!-- /sub navigation -->
+               </div>
+            </div>
+            <!-- /secondary sidebar -->
+
+            <!-- Main content -->
+            <div class="content-wrapper">
+               <!-- Content area -->
+               <div class="content">
+                  <!-- Single line -->
+                  <div class="panel panel-white">
+                     {% block body %}
+                     {% endblock %}
+                  </div>
+                  <!-- /single line -->
+               </div>
+               <!-- /content area -->
+            </div>
+            <!-- /main content -->
+         </div>
+         <!-- /page content -->
+      </div>
+      <!-- /page container -->
+      <script type="text/javascript">
+        checkLinks('{{ user.condition_group }}');
+        //ajax call
+        function handleAction(link, action, time){
+            // Server link_ids are -1
+            // Email link_ids are > 0
+            var link_id = 0, link_url;
+            var username = "{{ user.username }}";
+            //grab ajax receiver url
+            var url = '{% url "mail:receiver" %}';
+            var timestamp = new Date($.now()).toUTCString();
+            // Link variable is a string if it exists
+            if (typeof(link) == 'string') link_url = link;
+            else if (link.attr('href')) link_url = link.attr('href');
+            else if (link.attr('label')) link_url = link.attr('label');
+            else link_url = '';
+            // If link has an id, it should be that, else it's 0
+            if (link[0].id) link_id = link[0].id;
+            var screen_height = $(window).height();
+            var screen_width = $(window).width();
+            var statusbar_visible = window.statusbar.visible;
+            var action = action;
+            if (time == undefined) time = -1;
+            console.log(link_url, action, link_id, time);
+            $.ajax({
+              url: url,
+              method: 'POST',
+              data : {
+                "username": username,
+                "link": link_url,
+                "client_time": timestamp,
+                "screen_height": screen_height,
+                "screen_width": screen_width,
+                "statusbar_visible": statusbar_visible,
+                "action": action,
+                "link_id": link_id,
+                "hover_time": time,
+                csrfmiddlewaretoken: "{{ csrf_token }}",
+              },
+              error: function(exception){
+              },
+            });
+        }
+          // This is to record back/forward button clicks.
+          // If a participant hits the back / forward button
+        if (performance.navigation.type == 2){
+          var href = document.location.pathname;
+          // If the participant hit backwards or forwards to the inbox
+          if (href=='/mail/u/0/inbox'){
+            // log the interaction
+            handleAction(href, "back_forward");
+            // Refresh the webpage to update the database values for unread_count
+            location.reload(true);
+           }
+
+        }
+      </script>
+       <!--I found this loose div but am not sure if removing it will break anything-->
+    <div>
+    </body>
+</html>

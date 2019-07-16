@@ -1,0 +1,237 @@
+---
+title: "analysis-links-total"
+author: "Yixin Zou"
+date: "September 13, 2018"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r echo=FALSE}
+#Set working directory
+# setwd("C:/Users/yzou15/Google Drive/UMSI/Research/REMS17-phishing/Data/Yixin scripts")
+setwd("C:/Workspace/REMS2017/data/final_analysis/yixin")
+# setwd("C:\\Users\\sloth\\Desktop\\Yixin\\phishing warning\\final_data")
+#Clean up the global environment
+# rm(list=ls())
+#Remove scientific notation
+options(scipen=999, digits=4)
+
+#Import the data
+data_all <- read.csv(file="data_master.csv",header=TRUE,sep=",",
+                         stringsAsFactors=FALSE,check.names = FALSE)
+# str(data_all)
+
+#Recode certain categotical variables
+#For gender, 3 participants were either third-gender or N/A, we code them as others
+table(data_all$DQ_Gender)
+data_all$DQ_Gender[data_all$DQ_Gender=="0" | data_all$DQ_Gender=="Non binary/third gender"] <- "Other"
+data_all$gender.f <- factor(data_all$DQ_Gender,levels=c("Female","Male","Other"), exclude = "Other")
+table(data_all$gender.f)
+
+#Show the distribution of education
+table(data_all$DQ_Educ)
+#Divide education into no bachelor's degree, bachelor's degree, and graduate degree
+data_all$DQ_Educ[data_all$DQ_Educ=="0"] <- "Other"
+data_all$DQ_Educ[data_all$DQ_Educ=="High school or equivalent (e.g., GED)" |
+                       data_all$DQ_Educ=="Some college but no degree"] <- "No Bachelor's degree"
+data_all$DQ_Educ[data_all$DQ_Educ=="Associate's degree" | 
+                       data_all$DQ_Educ=="Trade, technical, or vocational training" | 
+                       data_all$DQ_Educ=="Bachelor's degree"] <- "Bachelor's degree"
+data_all$DQ_Educ[data_all$DQ_Educ=="Professional degree (JD, MD etc.)" | 
+                       data_all$DQ_Educ=="Doctoral's degree" | 
+                       data_all$DQ_Educ=="Master's degree"] <- "Graduate degree"
+data_all$education.f <- factor(data_all$DQ_Educ,
+                                   levels=c("No Bachelor's degree","Bachelor's degree","Graduate degree"), exclude = "Other")
+table(data_all$education.f)
+
+#Show the distribution of age
+hist(as.numeric(data_all$DQ_Age), breaks=10)
+#Convert age to a numeric type variable
+data_all$age <- as.numeric(data_all$DQ_Age)
+
+#Show the distribution of occupation
+table(data_all$DQ_Occ)
+data_all$DQ_Occ[data_all$DQ_Occ == "Computers (Hardware, Desktop Software)"|
+                      data_all$DQ_Occ == "Engineering / Architecture" |
+                      data_all$DQ_Occ == "Internet"] <- "Technical occupations"
+data_all$DQ_Occ[data_all$DQ_Occ != "Technical occupations"] <- "Non-technical occupations"
+data_all$occupation.f <- factor(data_all$DQ_Occ,
+                                    levels=c("Technical occupations","Non-technical occupations"))
+table(data_all$occupation.f)
+
+#factor other predictors for the model
+
+#phishing-related variables
+data_all$p_email.f <- factor(data_all$p_email)
+table(data_all$p_email.f)
+data_all$p_link.f <- factor(data_all$p_link)
+table(data_all$p_link.f)
+
+#condition group variables
+data_all$placement.f <- factor(data_all$placement,
+                                   level=c("inmail","banner","browser","no warning"))
+table(data_all$placement.f)
+data_all$activation.f <- factor(data_all$activation,
+                                    level=c("on load","on click","no warning"))
+table(data_all$activation.f)
+data_all$forced_attention[data_all$forced_attention=="neither"] <- "no"
+data_all$forced_attention.f <- factor(data_all$forced_attention,
+                                          level=c("no","yes","no warning"))
+table(data_all$forced_attention.f)
+data_all$condition_group.f <- factor(data_all$condition_group,
+                                         levels=c(0:6), 
+                                         labels=c("no warning","on-load, no forced","on-load, forced",
+                                                  "on-click, no forced","on-click, forced",
+                                                  "banner","browser"))
+table(data_all$condition_group.f)
+
+#dependent variables: click and hover action
+data_all$click_action[data_all$click_action == "True"] <- 1
+data_all$click_action[data_all$click_action == "False"] <- 0
+data_all$hover_action[data_all$hover_action == "True"] <- 1
+data_all$hover_action[data_all$hover_action == "False"] <- 0
+data_all$click_action.f <- factor(data_all$click_action, levels=c(0:1), labels=c("no","yes"))
+data_all$hover_action.f <- factor(data_all$hover_action, levels=c(0:1), labels=c("no","yes"))
+
+#Factor random effect variables
+data_all$ref_id.f <- factor(data_all$ref_id)
+data_all$username.f <- factor(data_all$username)
+data_all$adj_link_id.f <- factor(data_all$adj_link_id)
+
+#rename time series variable
+colnames(data_all)[which(names(data_all) == "time_series")] <- "warnings_seen"
+
+#Only examine benign links
+library(dplyr)
+data_benign_only <- data_all %>% 
+  filter(data_all$p_link == "False")
+```
+
+```{r}
+#ANOVA on benign links click-through rates
+library(dplyr)
+data_benign_ctr <- data_benign_only %>%
+  select(username, non_phish_ctr, condition_group.f) %>%
+  distinct(username, non_phish_ctr, condition_group.f)
+
+library(pastecs)
+stat.desc(data_benign_ctr$non_phish_ctr, norm = TRUE)
+by(data_benign_ctr$non_phish_ctr, data_benign_ctr$condition_group.f, stat.desc, norm = TRUE)
+boxplot(data_benign_ctr$non_phish_ctr~data_benign_ctr$condition_group.f)
+```
+
+```{r}
+#one way anova
+benign_ctr_model <- lm(non_phish_ctr~condition_group.f, data=data_benign_ctr)
+summary(benign_ctr_model)
+anova(benign_ctr_model)
+
+#calculate the effect size
+library(heplots)
+etasq(benign_ctr_model, anova = TRUE)
+lsr::etaSquared(benign_ctr_model)
+```
+
+
+```{r echo=FALSE}
+#Run logistic regression on benign links
+#for click actions
+library(lme4)
+glm_click_benign <- glmer(click_action.f ~ 
+       (placement.f + activation.f + forced_attention.f)^2 #warning-related factors
+     + warnings_seen #number of warnings seen before and during clicking on the link
+     + cyber_quiz_score + PE_score + brand_usage # phishing-related individual characteristics
+     + gender.f + education.f + age + occupation.f #demographics 
+     + (1 | ref_id.f) + (1 | adj_link_id.f), #random effect
+     data=data_benign_only,
+     family="binomial")
+summary(glm_click_benign)
+
+#Print correlation tables
+print(glm_click_benign, correlation=TRUE)
+#Get confidence intervals
+se_click_benign <- sqrt(diag(vcov(glm_click_benign)))
+# table of estimates with 95% CI
+(tab_click_benign <- cbind(Est = fixef(glm_click_benign), 
+                          LL = fixef(glm_click_benign) - 1.96 * se_click_benign, 
+                          UL = fixef(glm_click_benign) + 1.96 * se_click_benign))
+#Odds ratio
+exp(tab_click_benign)
+```
+
+```{r echo=FALSE}
+#for hover actions
+library(lme4)
+glm_hover_benign <- glmer(hover_action.f ~ 
+    (placement.f + activation.f + forced_attention.f)^2 #warning-related factors
+  + warnings_seen #number of warnings seen before and during clicking on the link
+  + cyber_quiz_score + PE_score + brand_usage # phishing-related individual characteristics
+  + gender.f + education.f + age + occupation.f #demographics 
+  + (1 | ref_id.f) + (1 | adj_link_id.f), #random effect
+  data=data_benign_only,
+  family="binomial")
+summary(glm_hover_benign)
+
+#Print correlation tables
+print(glm_hover_benign, correlation=TRUE)
+#Get confidence intervals
+se_hover_benign <- sqrt(diag(vcov(glm_hover_benign)))
+# table of estimates with 95% CI
+(tab_hover_benign <- cbind(Est = fixef(glm_hover_benign), 
+                          LL = fixef(glm_hover_benign) - 1.96 * se_hover_benign, 
+                          UL = fixef(glm_hover_benign) + 1.96 * se_hover_benign))
+#Odds ratio
+exp(tab_hover_benign)
+
+```
+
+```{r echo=FALSE}
+#for hover time
+library(lmerTest)
+glm_hovertime_benign <- lmer(hover_time ~ 
+    (placement.f + activation.f + forced_attention.f)^2 #warning-related factors
+    + warnings_seen #number of warnings seen before and during clicking on the link
+    + cyber_quiz_score + PE_score + brand_usage # phishing-related individual characteristics
+    + gender.f + education.f + age + occupation.f #demographics 
+    + (1 | ref_id.f) + (1 | adj_link_id.f), #random effect
+    data=data_benign_only)
+summary(glm_hovertime_benign)
+anova(glm_hovertime_benign)
+
+#Calculate effect size
+r2.corr.mer <- function(m) {
+  lmfit <-  lm(model.response(model.frame(m)) ~ fitted(m))
+  summary(lmfit)$r.squared
+}
+r2.corr.mer(glm_hovertime_benign)
+
+# #ANOVA on CTR on links in total
+# #Consider assumptions overall and by group
+# #Using stat.desc, so need pastecs
+# library(pastecs)
+# stat.desc(data_all$non_phish_ctr, norm = TRUE)
+# by(data_all$non_phish_ctr, data_all$condition_group.f, stat.desc, norm = TRUE)
+# 
+# boxplot(data_all$non_phish_ctr~data_all$condition_group.f)
+# 
+# #since the data is non-normal, we do Kruskal-Wallis Test
+# kruskal.test(non_phish_ctr ~ condition_group.f, data = data_all) 
+# 
+# #Pairwise Mann-Whitney U-tests, use bonferroni as the p-value adjust method
+# PT_click_all = pairwise.wilcox.test(data_all$non_phish_ctr, 
+#                                       data_all$condition_group.f, 
+#                                       p.adjust.method="bonferroni")
+# PT_click_all = PT_click_all$p.value
+# #Make it into a nicely formatted table
+# library(rcompanion)
+# PT_click_all1 <- fullPTable(PT_click_all)
+# round(PT_click_all1, digits=4)
+
+
+```
+

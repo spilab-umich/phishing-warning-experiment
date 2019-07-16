@@ -1,0 +1,84 @@
+{% extends 'mail/base.html' %}
+{% load staticfiles %}
+{% block title %} Inbox {% endblock %}
+{% block body %}
+
+<!--Preview pane container-->
+<div class="navbar navbar-default">
+   <ul class="nav navbar-nav visible-xs-block no-border">
+      <li>
+         <a class="text-center collapsed" data-toggle="collapse" data-target="#inbox-toolbar-toggle-single">
+         <i class="icon-circle-down2"></i>
+         </a>
+      </li>
+   </ul>
+   <div class="navbar-collapse collapse" id="inbox-toolbar-toggle-single" style="margin-top: 12px;">
+      <div class="btn-group navbar-btn navbar-left">
+         <button type="button" class="btn btn-default btn-icon btn-checkbox-all disabled">
+         <input type="checkbox" class="styled">
+         </button>
+         <button type="button" class="btn btn-default btn-icon dropdown-toggle disabled" data-toggle="dropdown">
+         <span class="caret"></span>
+         </button>
+         <button type="button" class="btn btn-default btn-icon dropdown-toggle disabled" data-toggle="dropdown" style="padding-left: 20px;padding-right: 20px;margin-left: 16px;">
+         <i class="icon-spinner11"></i>
+         </button>
+         <ul class="dropdown-menu disabled">
+            <li><a href="#">Select all</a></li>
+            <li><a href="#">Select read</a></li>
+            <li><a href="#">Select unread</a></li>
+            <li class="divider"></li>
+            <li><a href="#">Clear selection</a></li>
+         </ul>
+      </div>
+      <div class="navbar-right">
+         <p class="navbar-text"><span class="text-semibold">1-20</span> of <span class="text-semibold">20</span></p>
+         <div class="btn-group navbar-left navbar-btn">
+            <button type="button" class="btn btn-default btn-icon disabled"><i class="icon-arrow-left12"></i></button>
+            <button type="button" class="btn btn-default btn-icon disabled"><i class="icon-arrow-right13"></i></button>
+         </div>
+         <div class="btn-group navbar-btn">
+            <button type="button" class="btn btn-default dropdown-toggle disabled" data-toggle="dropdown">
+            <i class="icon-cog3"></i>
+            <span class="caret"></span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-right">
+               <li><a href="#">Action</a></li>
+               <li><a href="#">Another action</a></li>
+               <li><a href="#">Something else here</a></li>
+               <li><a href="#">One more line</a></li>
+            </ul>
+         </div>
+      </div>
+   </div>
+</div>
+<div class="table-responsive">
+   <table class="table table-inbox">
+      <tbody data-link="row" class="rowlink">
+         {% for email in emails %}
+         <tr class="{{ email.read }}" name="email_id" id="{{ email.ref }}">
+            <td class="table-inbox-checkbox rowlink-skip">
+               <input type="checkbox" class="styled">
+            </td>
+            <td class="table-inbox-star rowlink-skip">
+               <i class="icon-star-empty3 text-muted"></i>
+            </td>
+            <td class="table-inbox-name">
+		              <a href="{% url 'mail:email' email.ref %}"></a>
+                  <div class="letter-icon-title text-default">{{ email.sender }}</div>
+            </td>
+            <td class="table-inbox-message">
+               <span class="table-inbox-subject">{{ email.subject }}{% verbatim %}&nbsp; &nbsp;{% endverbatim %}</span>
+               <span class="table-inbox-preview">{{ email.preview }}</span>
+            </td>
+            <td class="table-inbox-attachment">
+            </td>
+            <td class="table-inbox-time">
+               {{ email.time_sent }}
+            </td>
+         </tr>
+         {% endfor %}
+      </tbody>
+   </table>
+</div>
+{% endblock %}
