@@ -1,0 +1,357 @@
+---
+title: "phishing_links_analysis"
+author: ""
+date: ""
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r echo=FALSE}
+#Set working directory, change if necessary
+working_directory <- ""
+setwd(working_directory)
+
+#Clean up the global environment
+#rm(list=ls())
+
+#Remove scientific notation
+options(scipen=999, digits=4)
+
+#Import the data, make sure using the complete dataset including all users
+data_cleaned <- read.csv(file="data_adjusted.csv",header=TRUE,sep=",",
+                          stringsAsFactors=FALSE,check.names = FALSE)
+```
+
+```{r}
+#Recode and format variables for the model
+#Start with cateogircal variables with regards to participants
+#For gender, we code 0 (N/A) and non-binary as other, and exclude other in the final analysis because there are too few data points
+data_cleaned$DQ_Gender[data_cleaned$DQ_Gender=="0" | data_cleaned$DQ_Gender=="Non binary/third gender"] <- "Other"
+data_cleaned$gender.f <- factor(data_cleaned$DQ_Gender,levels=c("Female","Male","Other"), exclude = "Other")
+
+#For education, we divide it into no bachelor's degree, bachelor's degree, and graduate degree
+data_cleaned$DQ_Educ[data_cleaned$DQ_Educ=="0"] <- "Other"
+data_cleaned$DQ_Educ[data_cleaned$DQ_Educ=="High school or equivalent (e.g., GED)" |
+       data_cleaned$DQ_Educ=="Some college but no degree"] <- "No Bachelor's degree"
+data_cleaned$DQ_Educ[data_cleaned$DQ_Educ=="Associate's degree" | 
+       data_cleaned$DQ_Educ=="Trade, technical, or vocational training" | 
+       data_cleaned$DQ_Educ=="Bachelor's degree"] <- "Bachelor's degree"
+data_cleaned$DQ_Educ[data_cleaned$DQ_Educ=="Professional degree (JD, MD etc.)" | 
+       data_cleaned$DQ_Educ=="Doctoral's degree" | 
+         data_cleaned$DQ_Educ=="Master's degree"] <- "Graduate degree"
+data_cleaned$education.f <- factor(data_cleaned$DQ_Educ,
+       levels=c("No Bachelor's degree","Bachelor's degree","Graduate degree"), exclude = "Other")
+
+#For occupation, we divide it into technical vs. non-technical
+data_cleaned$DQ_Occ[data_cleaned$DQ_Occ == "Computers (Hardware, Desktop Software)"|
+        data_cleaned$DQ_Occ == "Engineering / Architecture" |
+          data_cleaned$DQ_Occ == "Internet"] <- "Technical occupations"
+data_cleaned$DQ_Occ[data_cleaned$DQ_Occ != "Technical occupations"] <- "Non-technical occupations"
+data_cleaned$occupation.f <- factor(data_cleaned$DQ_Occ,
+                       levels=c("Technical occupations","Non-technical occupations"))
+
+#For each email and link, we categorize if it's a phish or not, and factor the related variables
+data_cleaned$p_email.f <- factor(data_cleaned$p_email)
+data_cleaned$p_link.f <- factor(data_cleaned$p_link)
+
+#Factor condition groups and placement, give them labels
+data_cleaned$placement.f <- factor(data_cleaned$placement,
+            level=c("inmail","banner","browser","no warning"))
+data_cleaned$condition_group.f <- factor(data_cleaned$condition_group,
+            levels=c(1,2,3,4,5,6,0), 
+            labels=c("on-load, no forced","on-load, forced",
+                     "on-click, no forced","on-click, forced",
+                     "banner","browser","no warning"))
+
+#Factor dependent variables: click and hover actions
+data_cleaned$click_action.f <- factor(data_cleaned$click_action, labels=c("no","yes"))
+data_cleaned$hover_action.f <- factor(data_cleaned$hover_action, labels=c("no","yes"))
+data_cleaned$click_email_action.f <- factor(data_cleaned$email_p_link_click,levels=c("False","True",""), labels=c("no","yes","N/A"))
+data_cleaned$hover_email_action.f <- factor(data_cleaned$email_p_link_hover,levels=c("False","True",""), labels=c("no","yes","N/A"))
+data_cleaned$click_warning_action.f <- factor(data_cleaned$warn_p_link_click,levels=c("False","True",""), labels=c("no","yes","N/A"))
+data_cleaned$hover_warning_action.f <- 
+factor(data_cleaned$warn_p_link_hover,levels=c("False","True",""), labels=c("no","yes","N/A"))
+
+#Standardize continuous variables
+library(standardize)
+data_cleaned$age_scaled <- scale(as.numeric(data_cleaned$DQ_Age))[, 1]
+data_cleaned$cyber_quiz_score_scaled <- scale(data_cleaned$cyber_quiz_score)[, 1]
+data_cleaned$PE_score_scaled <- scale(data_cleaned$PE_score)[, 1]
+data_cleaned$brand_usage_scaled <- scale(data_cleaned$brand_usage)[, 1]
+data_cleaned$hover_time_scaled <- scale(data_cleaned$hover_time)[, 1]
+#rename time series variable
+colnames(data_cleaned)[which(names(data_cleaned) == "time_series")] <- "warnings_seen"
+data_cleaned$warnings_seen_scaled <- scale(data_cleaned$warnings_seen)[, 1]
+
+#Factor random effect variables
+data_cleaned$ref_id.f <- factor(data_cleaned$ref_id)
+data_cleaned$username.f <- factor(data_cleaned$username)
+data_cleaned$adj_link_id.f <- factor(data_cleaned$adj_link_id)
+```
+
+```{r}
+#Filter the dataset to include phishing link entries only
+library(dplyr)
+data_phish_only <- data_cleaned %>% 
+  filter(data_cleaned$p_link == "True")
+```
+
+```{r}
+#We conduct a one-way ANOVA on phishing links CTR between groups
+library(dplyr)
+data_phish_ctr <- data_phish_only %>% 
+  select(username, condition_group.f, true_phish_ctr) %>%
+  distinct(username, condition_group.f, true_phish_ctr)
+
+#descriptive stats for each group, look into normality
+library(pastecs)
+stat.desc(data_phish_ctr$true_phish_ctr, norm = TRUE)
+by(data_phish_ctr$true_phish_ctr, data_phish_ctr$condition_group.f, stat.desc, norm = TRUE)
+boxplot(data_phish_ctr$true_phish_ctr~data_phish_ctr$condition_group.f)
+
+#since the data is non-normal, we do Kruskal-Wallis Test
+kruskal.test(true_phish_ctr ~ condition_group.f, data = data_phish_ctr)
+
+#Pairwise Mann-Whitney U-tests, use bonferroni as the p-value adjust method
+PT_click_phish = pairwise.wilcox.test(data_phish_ctr$true_phish_ctr,
+                                      data_phish_ctr$condition_group.f,
+                          p.adjust.method="bonferroni")
+PT_click_phish = PT_click_phish$p.value
+# Make it into a nicely formatted table
+library(rcompanion)
+PT_click_phish1 <- fullPTable(PT_click_phish)
+round(PT_click_phish1, digits=4)
+```
+
+```{r}
+#Mixed-effect logistic regression model on phishing links click action
+#For all group comparison we include placement as the only warning-related predictor
+library(lme4)
+glm_click_phish <- glmer(click_action.f ~ 
+     placement.f #warning-related factors
+     + warnings_seen_scaled #number of warnings seen before and during clicking on the link
+     + benign_ctr #tendency to click on benign links
+     + cyber_quiz_score_scaled + PE_score_scaled + brand_usage_scaled # phishing-related individual characteristics
+     + gender.f + education.f + age_scaled + occupation.f #participants demographics 
+     + (1 | ref_id.f) + (1 | adj_link_id.f), #random effect, dropped username.f for phishing link analysis
+     data=data_phish_only,
+     family=binomial(link=logit),
+     control=glmerControl(optCtrl=list(maxfun=2e4)))
+
+summary(glm_click_phish)
+#Print correlation tables
+print(glm_click_phish, correlation=TRUE)
+#Get confidence intervals
+se_click_phish <- sqrt(diag(vcov(glm_click_phish)))
+# table of estimates with 95% CI
+(tab_click_phish <- cbind(Est = fixef(glm_click_phish), 
+              LL = fixef(glm_click_phish) - 1.96 * se_click_phish, 
+              UL = fixef(glm_click_phish) + 1.96 * se_click_phish))
+#Odds ratio
+exp(tab_click_phish)
+```
+
+```{r}
+#Can do the same analysis with email-placed phishing links separated from warning-placed phishing links (not going to write that for all models, but you get my idea here)
+#Logistic regression on click actions regarding email-placed phising links
+glm_click_phish_email <- glmer(click_email_action.f ~ 
+     placement.f #warning-related factors
+     + warnings_seen_scaled #number of warnings seen before and during clicking on the link
+     + benign_ctr #tendency to click on benign links
+     + cyber_quiz_score_scaled + PE_score_scaled + brand_usage_scaled # phishing-related individual characteristics
+     + gender.f + education.f + age_scaled + occupation.f #participants demographics 
+     + (1 | ref_id.f) + (1 | adj_link_id.f), #random effect, dropped username.f for phishing link analysis
+     data=data_phish_only,
+     family=binomial(link=logit),
+     control=glmerControl(optCtrl=list(maxfun=2e4)))
+
+summary(glm_click_phish_email)
+#Print correlation tables
+print(glm_click_phish_email, correlation=TRUE)
+#Get confidence intervals
+se_click_phish_email <- sqrt(diag(vcov(glm_click_phish_email)))
+# table of estimates with 95% CI
+(tab_click_phish_email <- cbind(Est = fixef(glm_click_phish_email), 
+              LL = fixef(glm_click_phish_email) - 1.96 * se_click_phish_email, 
+              UL = fixef(glm_click_phish_email) + 1.96 * se_click_phish_email))
+#Odds ratio
+exp(tab_click_phish_email)
+```
+
+```{r}
+#Logistic regression on click actions regarding warning-placed phishing links
+#Exclude participants in the no warning group, since they did not see any warning
+data_warning_only <- data_phish_only %>% 
+  filter(data_phish_only$condition_group != 0)
+
+glm_click_phish_warning <- glmer(click_warning_action.f ~ 
+     placement.f #warning-related factors
+     + warnings_seen_scaled #number of warnings seen before and during clicking on the link
+     + benign_ctr #tendency to click on benign links
+     + cyber_quiz_score_scaled + PE_score_scaled + brand_usage_scaled # phishing-related individual characteristics
+     + gender.f + education.f + age_scaled + occupation.f #participants demographics 
+     + (1 | ref_id.f) + (1 | adj_link_id.f), #random effect, dropped username.f for phishing link analysis
+     data=data_warning_only,
+     family=binomial(link=logit),
+     control=glmerControl(optCtrl=list(maxfun=2e4)))
+
+summary(glm_click_phish_warning)
+#Print correlation tables
+print(glm_click_phish_warning, correlation=TRUE)
+#Get confidence intervals
+se_click_phish_warning <- sqrt(diag(vcov(glm_click_phish_warning)))
+# table of estimates with 95% CI
+(tab_click_phish_warning <- cbind(Est = fixef(glm_click_phish_warning), 
+              LL = fixef(glm_click_phish_warning) - 1.96 * se_click_phish_warning, 
+              UL = fixef(glm_click_phish_warning) + 1.96 * se_click_phish_warning))
+#Odds ratio
+exp(tab_click_phish_warning)
+```
+
+
+```{r}
+#Logistic regression on hover actions regarding phishing links
+glm_hover_phish <- glmer(hover_action.f ~ 
+     placement.f #warning-related factors
+     + warnings_seen_scaled #number of warnings seen before and during hovering on the link
+     + benign_hover_rate #tendency to hover over benign links
+     + cyber_quiz_score_scaled + PE_score_scaled + brand_usage_scaled # phishing-related individual characteristics
+     + gender.f + education.f + age_scaled + occupation.f #participants demographics 
+     + (1 | ref_id.f) + (1 | adj_link_id.f), #random effect, dropped username.f for phishing link analysis
+     data=data_phish_only,
+     family=binomial(link=logit),
+     control=glmerControl(optCtrl=list(maxfun=2e4)))
+
+summary(glm_hover_phish)
+#Print correlation tables
+print(glm_hover_phish, correlation=TRUE)
+#Get confidence intervals
+se_hover_phish <- sqrt(diag(vcov(glm_hover_phish)))
+# table of estimates with 95% CI
+(tab_hover_phish <- cbind(Est = fixef(glm_hover_phish), 
+              LL = fixef(glm_hover_phish) - 1.96 * se_hover_phish, 
+              UL = fixef(glm_hover_phish) + 1.96 * se_hover_phish))
+#Odds ratio
+exp(tab_hover_phish)
+```
+
+
+```{r}
+#Linear regression on hover time regarding phishing links
+library(lmerTest)
+glm_hovertime_phish <- lmerTest::lmer(hover_time_scaled ~ 
+    placement.f #warning-related factors
+     + warnings_seen_scaled #number of warnings seen before and during hovering on the link
+     + benign_hover_rate #tendency to hover over benign links
+     + cyber_quiz_score_scaled + PE_score_scaled + brand_usage_scaled # phishing-related individual characteristics
+     + gender.f + education.f + age_scaled + occupation.f #participants demographics 
+     + (1 | ref_id.f) + (1 | adj_link_id.f), #random effect, dropped username.f for phishing link analysis
+     data=data_phish_only)
+summary(glm_hovertime_phish)
+# anova(glm_hovertime_email_phish)
+
+#Calculate effect size
+r2.corr.mer <- function(m) {
+  lmfit <-  lm(model.response(model.frame(m)) ~ fitted(m))
+  summary(lmfit)$r.squared
+}
+r2.corr.mer(glm_hovertime_phish)
+```
+
+```{r}
+#Now we further filter the dataset to only include entries in the link-focused groups, and examine the effect of forced attention and activation
+library(dplyr)
+phish_inemail_only <- data_phish_only %>% 
+  filter(data_phish_only$condition_group == 1 | data_phish_only$condition_group == 2 | data_phish_only$condition_group == 3 | data_phish_only$condition_group == 4)
+#Factor the activation and forced attention variables
+phish_inemail_only$activation.f <- factor(phish_inemail_only$activation,
+            level=c("on load","on click"))
+phish_inemail_only$forced_attention.f <- factor(phish_inemail_only$forced_attention,
+            level=c("no","yes"))
+#Rescale continuous variables
+library(standardize)
+phish_inemail_only$age_rescaled <- scale(as.numeric(phish_inemail_only$DQ_Age))[, 1]
+phish_inemail_only$cyber_quiz_score_rescaled <- scale(phish_inemail_only$cyber_quiz_score)[, 1]
+phish_inemail_only$PE_score_rescaled <- scale(phish_inemail_only$PE_score)[, 1]
+phish_inemail_only$brand_usage_rescaled <- scale(phish_inemail_only$brand_usage)[, 1]
+phish_inemail_only$hover_time_rescaled <- scale(phish_inemail_only$hover_time)[, 1]
+phish_inemail_only$warnings_seen_rescaled <- scale(phish_inemail_only$warnings_seen)[, 1]
+```
+
+```{r}
+#Now we include forced attention and activation as well as their interactions for in-email conditions in all three models (click action, hover action, and hover time)
+#Logistics regression on phishing link click action for link-focused groups
+library(lme4)
+glm_click_phish_inemail <- glmer(click_action.f ~ 
+     activation.f * forced_attention.f #warning-related factors
+      + warnings_seen_rescaled #number of warnings seen before and during clicking on the link
+     + benign_ctr #tendency to click on benign links
+     + cyber_quiz_score_rescaled + PE_score_rescaled + brand_usage_rescaled # phishing-related individual characteristics
+     + gender.f + education.f + age_rescaled + occupation.f #participants demographics 
+     + (1 | ref_id.f) + (1 | adj_link_id.f), #random effect, dropped username.f for phishing link analysis
+     data=phish_inemail_only,
+     family=binomial(link=logit),
+     control=glmerControl(optCtrl=list(maxfun=2e4)))
+
+summary(glm_click_phish_inemail)
+#Print correlation tables
+print(glm_click_phish_inemail, correlation=TRUE)
+#Get confidence intervals
+se_click_phish <- sqrt(diag(vcov(glm_click_phish)))
+# table of estimates with 95% CI
+(tab_click_phish <- cbind(Est = fixef(glm_click_phish), 
+              LL = fixef(glm_click_phish) - 1.96 * se_click_phish, 
+              UL = fixef(glm_click_phish) + 1.96 * se_click_phish))
+#Odds ratio
+exp(tab_click_phish)
+```
+
+```{r}
+#Logistic regression on phishing link hover actions for link-focused groups
+library(optimx)
+glm_hover_phish_inemail <- glmer(hover_action.f ~ 
+     activation.f * forced_attention.f #warning-related factors
+     + warnings_seen_rescaled #number of warnings seen before and during hovering on the link
+     + benign_hover_rate #tendency to hover over benign links
+     + cyber_quiz_score_rescaled + PE_score_rescaled + brand_usage_rescaled # phishing-related individual characteristics
+     + gender.f + education.f + age_rescaled + occupation.f #participants demographics 
+     + (1 | ref_id.f) + (1 | adj_link_id.f), #random effect, dropped username.f for phishing link analysis
+     data=phish_inemail_only,
+     family=binomial(link=logit),
+     # REML = FALSE,
+     control = glmerControl(optimizer ='optimx', optCtrl=list(method='L-BFGS-B')))
+summary(glm_hover_phish_inemail)
+#Print correlation tables
+print(glm_hover_phish_inemail, correlation=TRUE)
+#Get confidence intervals
+se_hover_phish_inemail <- sqrt(diag(vcov(glm_hover_phish_inemail)))
+# table of estimates with 95% CI
+(tab_hover_phish_inemail <- cbind(Est = fixef(glm_hover_phish_inemail), 
+              LL = fixef(glm_hover_phish_inemail) - 1.96 * se_hover_phish_inemail, 
+              UL = fixef(glm_hover_phish_inemail) + 1.96 * se_hover_phish_inemail))
+#Odds ratio
+exp(tab_hover_phish_inemail)
+```
+
+```{r}
+#Linear regression on phishing link hover time for link-focused groups
+library(lmerTest)
+glm_hovertime_phish_inemail <- lmerTest::lmer(hover_time_rescaled ~ 
+     activation.f * forced_attention.f #warning-related factors
+     + warnings_seen_rescaled #number of warnings seen before and during hovering on the link
+     + benign_hover_rate #tendency to hover over benign links
+     + cyber_quiz_score_rescaled + PE_score_rescaled + brand_usage_rescaled # phishing-related individual characteristics
+     + gender.f + education.f + age_rescaled + occupation.f #participants demographics 
+     + (1 | ref_id.f) + (1 | adj_link_id.f), #random effect, dropped username.f for phishing link analysis
+     data=phish_inemail_only)
+summary(glm_hovertime_phish_inemail)
+# anova(glm_hovertime_email_phish)
+
+#Calculate effect size
+r2.corr.mer(glm_hovertime_phish_inemail)
+```
+

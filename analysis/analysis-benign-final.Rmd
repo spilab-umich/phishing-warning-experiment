@@ -1,0 +1,283 @@
+---
+title: "analysis-benign-final"
+author: ""
+date: ""
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r echo=FALSE}
+#Set working directory, change if necessary
+working_directory <- ""
+setwd(working_directory)
+
+#Clean up the global environment
+#rm(list=ls())
+
+#Remove scientific notation
+options(scipen=999, digits=4)
+
+#Import the data, make sure using the complete dataset including all users
+data_all <- read.csv(file="data_master.csv",header=TRUE,sep=",",
+                          stringsAsFactors=FALSE,check.names = FALSE)
+```
+
+```{r}
+#Recode and format variables for the model
+#Start with cateogircal variables with regards to participants
+#For gender, we code 0 (N/A) and non-binary as other, and exclude other in the final analysis because there are too few data points
+data_all$DQ_Gender[data_all$DQ_Gender=="0" | data_all$DQ_Gender=="Non binary/third gender"] <- "Other"
+data_all$gender.f <- factor(data_all$DQ_Gender,levels=c("Female","Male","Other"), exclude = "Other")
+
+#For education, we divide it into no bachelor's degree, bachelor's degree, and graduate degree
+data_all$DQ_Educ[data_all$DQ_Educ=="0"] <- "Other"
+data_all$DQ_Educ[data_all$DQ_Educ=="High school or equivalent (e.g., GED)" |
+       data_all$DQ_Educ=="Some college but no degree"] <- "No Bachelor's degree"
+data_all$DQ_Educ[data_all$DQ_Educ=="Associate's degree" | 
+       data_all$DQ_Educ=="Trade, technical, or vocational training" | 
+       data_all$DQ_Educ=="Bachelor's degree"] <- "Bachelor's degree"
+data_all$DQ_Educ[data_all$DQ_Educ=="Professional degree (JD, MD etc.)" | 
+       data_all$DQ_Educ=="Doctoral's degree" | 
+         data_all$DQ_Educ=="Master's degree"] <- "Graduate degree"
+data_all$education.f <- factor(data_all$DQ_Educ,
+       levels=c("No Bachelor's degree","Bachelor's degree","Graduate degree"), exclude = "Other")
+
+#For occupation, we divide it into technical vs. non-technical
+data_all$DQ_Occ[data_all$DQ_Occ == "Computers (Hardware, Desktop Software)"|
+        data_all$DQ_Occ == "Engineering / Architecture" |
+          data_all$DQ_Occ == "Internet"] <- "Technical occupations"
+data_all$DQ_Occ[data_all$DQ_Occ != "Technical occupations"] <- "Non-technical occupations"
+data_all$occupation.f <- factor(data_all$DQ_Occ,
+                       levels=c("Technical occupations","Non-technical occupations"))
+
+#For each email and link, we categorize if it's a phish or not, and factor the related variables
+data_all$p_email.f <- factor(data_all$p_email)
+data_all$p_link.f <- factor(data_all$p_link)
+
+#Factor condition groups and placement, give them labels
+data_all$placement.f <- factor(data_all$placement,
+            level=c("inmail","banner","browser","no warning"))
+data_all$condition_group.f <- factor(data_all$condition_group,
+            levels=c(1,2,3,4,5,6,0), 
+            labels=c("on-load, no forced","on-load, forced",
+                     "on-click, no forced","on-click, forced",
+                     "banner","browser","no warning"))
+
+#Factor dependent variables: click and hover actions
+data_all$click_action.f <- factor(data_all$click_action, labels=c("no","yes"))
+data_all$hover_action.f <- factor(data_all$hover_action, labels=c("no","yes"))
+
+#Standardize continuous variables
+library(standardize)
+data_all$age_scaled <- scale(as.numeric(data_all$DQ_Age))[, 1]
+data_all$cyber_quiz_score_scaled <- scale(data_all$cyber_quiz_score)[, 1]
+data_all$PE_score_scaled <- scale(data_all$PE_score)[, 1]
+data_all$brand_usage_scaled <- scale(data_all$brand_usage)[, 1]
+data_all$hover_time_scaled <- scale(data_all$hover_time)[, 1]
+#rename time series variable
+colnames(data_all)[which(names(data_all) == "time_series")] <- "warnings_seen"
+data_all$warnings_seen_scaled <- scale(data_all$warnings_seen)[, 1]
+
+#Factor random effect variables
+data_all$ref_id.f <- factor(data_all$ref_id)
+data_all$username.f <- factor(data_all$username)
+data_all$adj_link_id.f <- factor(data_all$adj_link_id)
+```
+
+```{r}
+#Filter the dataset to include benign link entries only
+library(dplyr)
+data_benign_only <- data_all %>% 
+  filter(data_all$p_link == "False")
+```
+
+```{r}
+#We conduct a one-way ANOVA on benign links CTR between groups
+library(dplyr)
+data_benign_ctr <- data_benign_only %>%
+  select(username, non_phish_ctr, condition_group.f) %>%
+  distinct(username, non_phish_ctr, condition_group.f)
+
+#descriptive stats for each group, look into normality
+library(pastecs)
+stat.desc(data_benign_ctr$non_phish_ctr, norm = TRUE)
+by(data_benign_ctr$non_phish_ctr, data_benign_ctr$condition_group.f, stat.desc, norm = TRUE)
+boxplot(data_benign_ctr$non_phish_ctr~data_benign_ctr$condition_group.f)
+
+#one way anova
+benign_ctr_model <- lm(non_phish_ctr~condition_group.f, data=data_benign_ctr)
+summary(benign_ctr_model)
+anova(benign_ctr_model)
+
+#calculate the effect size
+library(heplots)
+etasq(benign_ctr_model, anova = TRUE)
+lsr::etaSquared(benign_ctr_model)
+```
+
+```{r}
+#Mixed-effect logistic regression model on benign links click action
+#For all group comparison we include placement as the only warning-related predictor
+library(lme4)
+glm_click_benign <- glmer(click_action.f ~ 
+     placement.f #warning-related factors
+     + warnings_seen_scaled #number of warnings seen before and during clicking on the link
+     + cyber_quiz_score_scaled + PE_score_scaled + brand_usage_scaled # phishing-related individual characteristics
+     + gender.f + education.f + age_scaled + occupation.f #participants demographics 
+     + (1 | ref_id.f) + (1 | adj_link_id.f), #random effect, dropped username.f for benign link analysis as well because of convergence issue
+     data=data_benign_only,
+     family=binomial(link=logit),
+     control=glmerControl(optCtrl=list(maxfun=2e4)))
+
+summary(glm_click_benign)
+#Print correlation tables
+print(glm_click_benign, correlation=TRUE)
+#Get confidence intervals
+se_click_benign <- sqrt(diag(vcov(glm_click_benign)))
+# table of estimates with 95% CI
+(tab_click_benign <- cbind(Est = fixef(glm_click_benign), 
+              LL = fixef(glm_click_benign) - 1.96 * se_click_benign, 
+              UL = fixef(glm_click_benign) + 1.96 * se_click_benign))
+#Odds ratio
+exp(tab_click_benign)
+```
+
+```{r}
+#Logistic regression on hover actions regarding benign links
+glm_hover_benign <- glmer(hover_action.f ~ 
+     placement.f #warning-related factors
+     + warnings_seen_scaled #number of warnings seen before and during hovering on the link
+     + cyber_quiz_score_scaled + PE_score_scaled + brand_usage_scaled # phishing-related individual characteristics
+     + gender.f + education.f + age_scaled + occupation.f #participants demographics 
+     + (1 | ref_id.f) + (1 | adj_link_id.f), #random effect, dropped username.f for benign link analysis as well because of convergence issue
+     data=data_benign_only,
+     family=binomial(link=logit),
+     control=glmerControl(optCtrl=list(maxfun=2e4)))
+
+summary(glm_hover_benign)
+#Print correlation tables
+print(glm_hover_benign, correlation=TRUE)
+#Get confidence intervals
+se_hover_benign <- sqrt(diag(vcov(glm_hover_benign)))
+# table of estimates with 95% CI
+(tab_hover_benign <- cbind(Est = fixef(glm_hover_benign), 
+              LL = fixef(glm_hover_benign) - 1.96 * se_hover_benign, 
+              UL = fixef(glm_hover_benign) + 1.96 * se_hover_benign))
+#Odds ratio
+exp(tab_hover_benign)
+```
+
+
+```{r}
+#Linear regression on hover time regarding benign links
+library(lmerTest)
+glm_hovertime_benign <- lmerTest::lmer(hover_time_scaled ~ 
+    placement.f #warning-related factors
+     + warnings_seen_scaled #number of warnings seen before and during hovering on the link
+     + cyber_quiz_score_scaled + PE_score_scaled + brand_usage_scaled # phishing-related individual characteristics
+     + gender.f + education.f + age_scaled + occupation.f #participants demographics 
+     + (1 | ref_id.f) + (1 | adj_link_id.f), #random effect, dropped username.f for benign link analysis as well because of convergence issue
+     data=data_benign_only)
+summary(glm_hovertime_benign)
+
+#Calculate effect size
+r2.corr.mer <- function(m) {
+  lmfit <-  lm(model.response(model.frame(m)) ~ fitted(m))
+  summary(lmfit)$r.squared
+}
+r2.corr.mer(glm_hovertime_benign)
+```
+
+```{r}
+#Now we further filter the dataset to only include entries in the link-focused groups, and examine the effect of forced attention and activation
+library(dplyr)
+benign_inemail_only <- data_benign_only %>% 
+  filter(data_benign_only$condition_group == 1 | data_benign_only$condition_group == 2 | data_benign_only$condition_group == 3 | data_benign_only$condition_group == 4)
+#Factor the activation and forced attention variables
+benign_inemail_only$activation.f <- factor(benign_inemail_only$activation,
+            level=c("on load","on click"))
+benign_inemail_only$forced_attention.f <- factor(benign_inemail_only$forced_attention,
+            level=c("no","yes"))
+#Rescale continuous variables
+library(standardize)
+benign_inemail_only$age_rescaled <- scale(as.numeric(benign_inemail_only$DQ_Age))[, 1]
+benign_inemail_only$cyber_quiz_score_rescaled <- scale(benign_inemail_only$cyber_quiz_score)[, 1]
+benign_inemail_only$PE_score_rescaled <- scale(benign_inemail_only$PE_score)[, 1]
+benign_inemail_only$brand_usage_rescaled <- scale(benign_inemail_only$brand_usage)[, 1]
+benign_inemail_only$hover_time_rescaled <- scale(benign_inemail_only$hover_time)[, 1]
+benign_inemail_only$warnings_seen_rescaled <- scale(benign_inemail_only$warnings_seen)[, 1]
+```
+
+```{r}
+#Now we include forced attention and activation as well as their interactions for in-email conditions in all three models (click action, hover action, and hover time)
+#Logistics regression on benign link click action for link-focused groups
+library(lme4)
+glm_click_benign_inemail <- glmer(click_action.f ~ 
+     activation.f * forced_attention.f #warning-related factors
+     + warnings_seen_rescaled #number of warnings seen before and during clicking on the link
+     + cyber_quiz_score_rescaled + PE_score_rescaled + brand_usage_rescaled # phishing-related individual characteristics
+     + gender.f + education.f + age_rescaled + occupation.f #participants demographics 
+     + (1 | ref_id.f) + (1 | adj_link_id.f), #random effect, dropped username.f for benign link analysis as well because of convergence issue
+     data=benign_inemail_only,
+     family=binomial(link=logit),
+     control=glmerControl(optCtrl=list(maxfun=2e4)))
+
+summary(glm_click_benign_inemail)
+#Print correlation tables
+print(glm_click_benign_inemail, correlation=TRUE)
+#Get confidence intervals
+se_click_benign <- sqrt(diag(vcov(glm_click_benign_inemail)))
+# table of estimates with 95% CI
+(tab_click_benign <- cbind(Est = fixef(glm_click_benign_inemail), 
+              LL = fixef(glm_click_benign_inemail) - 1.96 * se_click_benign, 
+              UL = fixef(glm_click_benign_inemail) + 1.96 * se_click_benign))
+#Odds ratio
+exp(tab_click_benign)
+```
+
+```{r}
+#Logistic regression on benign link hover actions for link-focused groups
+library(optimx)
+glm_hover_benign_inemail <- glmer(hover_action.f ~ 
+     activation.f * forced_attention.f #warning-related factors
+     + warnings_seen_rescaled #number of warnings seen before and during hovering on the link
+     + cyber_quiz_score_rescaled + PE_score_rescaled + brand_usage_rescaled # phishing-related individual characteristics
+     + gender.f + education.f + age_rescaled + occupation.f #participants demographics 
+     + (1 | ref_id.f) + (1 | adj_link_id.f), #random effect, dropped username.f for benign link analysis as well because of convergence issue
+     data=benign_inemail_only,
+     family=binomial(link=logit),
+     REML = FALSE,
+     control = glmerControl(optimizer ='optimx', optCtrl=list(method='L-BFGS-B')))
+summary(glm_hover_benign_inemail)
+#Print correlation tables
+print(glm_hover_benign_inemail, correlation=TRUE)
+#Get confidence intervals
+se_hover_phish_inemail <- sqrt(diag(vcov(glm_hover_benign_inemail)))
+# table of estimates with 95% CI
+(tab_hover_phish_inemail <- cbind(Est = fixef(glm_hover_benign_inemail), 
+              LL = fixef(glm_hover_benign_inemail) - 1.96 * se_hover_phish_inemail, 
+              UL = fixef(glm_hover_benign_inemail) + 1.96 * se_hover_phish_inemail))
+#Odds ratio
+exp(tab_hover_phish_inemail)
+```
+
+```{r}
+#Linear regression on benign link hover time for link-focused groups
+library(lmerTest)
+glm_hovertime_benign_inemail <- lmerTest::lmer(hover_time_rescaled ~ 
+     activation.f * forced_attention.f #warning-related factors
+     + warnings_seen_rescaled #number of warnings seen before and during hovering on the link
+     + cyber_quiz_score_rescaled + PE_score_rescaled + brand_usage_rescaled # phishing-related individual characteristics
+     + gender.f + education.f + age_rescaled + occupation.f #participants demographics 
+     + (1 | ref_id.f) + (1 | adj_link_id.f), #random effect, dropped username.f for benign link analysis as well because of convergence issue
+     data=benign_inemail_only)
+summary(glm_hovertime_benign_inemail)
+
+#Calculate effect size
+r2.corr.mer(glm_hovertime_benign_inemail)
+```
+

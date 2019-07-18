@@ -1,0 +1,102 @@
+﻿{% extends 'mail/base.html' %}
+{% block title %} {{email.sender}} {% endblock %}
+{% block head %}
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+{% endblock %}
+<!-- Mail details -->
+{% block body %}
+{% load staticfiles %}
+<!-- Mail toolbar -->
+<div class ="warning full">
+</div>
+<div class="panel-toolbar panel-toolbar-inbox" style="margin-top: 0.7%;margin-bottom: -1%;">
+	<div class="navbar navbar-default">
+		<ul class="nav navbar-nav visible-xs-block no-border">
+			<li>
+				<a class="text-center collapsed" data-toggle="collapse" data-target="#inbox-toolbar-toggle-single">
+					<i class="icon-circle-down2"></i>
+				</a>
+			</li>
+		</ul>
+
+		<div class="navbar-collapse collapse" id="inbox-toolbar-toggle-single">
+			<div class="btn-group navbar-btn">
+				<a href="{% url 'mail:inbox' %}" class="btn btn-default"><i class="fa fa-long-arrow-left fa-lg"></i> <text style="font-size: 11px;"> Back to Inbox<span class="hidden-xs position-right"></span></text></a>
+				<a href="#" class="btn btn-default disabled"><i class="fa fa-reply"></i> <span class="hidden-xs position-right"></span></a>
+				<a href="#" class="btn btn-default disabled"><i class="fa fa-reply-all"></i> <span class="hidden-xs position-right"></span></a>
+				<a href="#" class="btn btn-default disabled"><i class="fa fa-trash"></i> <span class="hidden-xs position-right"></span></a>
+
+									<div class="btn-group">
+					<button type="button" class="btn btn-default dropdown-toggle disabled" data-toggle="dropdown">
+						<i class="icon-menu7"></i>
+						<span class="caret"></span>
+					</button>
+
+					<ul class="dropdown-menu dropdown-menu-right">
+						<li><a href="#">Action</a></li>
+						<li><a href="#">Another action</a></li>
+						<li><a href="#">Something else here</a></li>
+						<li><a href="#">One more line</a></li>
+					</ul>
+				</div>
+			</div>
+				<div class="btn-group navbar-btn navbar-right">
+					<div class="navbar-left navbar-btn">
+						{% if prev_email > 0 %}
+						<a href="{% url 'mail:email' prev_email %}" class="btn btn-default btn-icon"><i class="icon-arrow-left12"></i></a>
+						{% else %}
+             <a class="btn btn-default btn-icon disabled"><i class="icon-arrow-left12"></i></a>
+						 {% endif %}
+						 {% if next_email > 0 %}
+						 <a href="{% url 'mail:email' next_email %}" class="btn btn-default btn-icon"><i class="icon-arrow-right13"></i></a>
+						 {% else %}
+						 <a class="btn btn-default btn-icon disabled"><i class="icon-arrow-right13"></i></a>
+						 {% endif %}
+          </div>
+          <div class="btn-group navbar-btn">
+             <button type="button" class="btn btn-default dropdown-toggle disabled" data-toggle="dropdown">
+             <i class="icon-cog3"></i>
+             <span class="caret"></span>
+             </button>
+             <ul class="dropdown-menu dropdown-menu-right">
+                <li><a href="#">Action</a></li>
+                <li><a href="#">Another action</a></li>
+                <li><a href="#">Something else here</a></li>
+                <li><a href="#">One more line</a></li>
+             </ul>
+          </div>
+				</div>
+		</div>
+	</div>
+</div>
+<!-- Mail details -->
+<div class="media heading stack-media-on-mobile mail-details-read" style="padding-top: 10px;padding-bottom: 0px;">
+   <div class="media-body">
+      <h3 class="media-heading">{{ email.subject }}</h3>
+   </div>
+   <div class="media-right text-nowrap">
+      <div class="navbar-bt">
+         <a href="#" class="btn btn-default disabled"><i class="icon-printer"></i> <span class="hidden-xs position-right"></span></a>
+         <a href="#" class="btn btn-default disabled"><i class="icon-new-tab2"></i> <span class="hidden-xs position-right"></span></a>
+      </div>
+   </div>
+</div>
+<!-- /mail details -->
+<!-- Mail details -->
+<div class="media stack-media-on-mobile mail-details-read">
+   <a href="#" class="media-left">
+   <img src="{% static 'images/placeholder.jpg' %}" class="img-circle img-xs" alt="" style="width: 40px !important;height: 40px !important;"/>
+   </a>
+   <div class="media-body">
+      <h6 class="media-heading"><strong>{{ email.sender }}</strong> <span style="color:#848484;font-size:13px;">&lt; {{ email.sender_address }} &gt;</span></h6>
+      <div class="letter-icon-title text-semibold">to me</a></div>
+   </div>
+</div>
+<!-- /mail details -->
+<!-- Mail container -->
+<div class="mail-container-read" id="email_container">
+   <!-- email -->
+   {% include file_name %}
+</div>
+{% endblock %}
