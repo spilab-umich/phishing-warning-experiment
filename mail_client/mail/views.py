@@ -35,7 +35,7 @@ def index(request):
 #inbox view
 def inbox(request):
     #bounce the request if the user is not authenticated
-    if not request.user.is_authenticated():
+    if not request.user.is_authenticated:
         return redirect('mail:index')
     else:
         #log the request on the server side
@@ -52,7 +52,7 @@ def inbox(request):
 #individual email view
 def email(request, email_id):
     #bounce the request if the user is not authenticated
-    if not request.user.is_authenticated():
+    if not request.user.is_authenticated:
         return redirect('mail:index')
     else:
         #log the request on the server side
